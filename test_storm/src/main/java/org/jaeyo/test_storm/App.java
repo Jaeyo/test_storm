@@ -4,7 +4,11 @@ import org.jaeyo.test_storm.filter.Print;
 import org.jaeyo.test_storm.function.ParseApacheLog;
 import org.jaeyo.test_storm.function.ToUpperCase;
 
+import storm.trident.TridentState;
 import storm.trident.TridentTopology;
+import storm.trident.operation.builtin.Count;
+import storm.trident.testing.MemoryMapState;
+import storm.trident.testing.MemoryMapState.Factory;
 import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.generated.StormTopology;
@@ -21,7 +25,9 @@ public class App {
 //		cluster.submitTopology("test", config, getParallelTopology());
 //		cluster.submitTopology("test", config, getProjectTopology());
 //		cluster.submitTopology("test", config, getParseVOTopology());
-		cluster.submitTopology("test", config, getParseIpTopology());
+//		cluster.submitTopology("test", config, getParseIpTopology());
+//		cluster.submitTopology("test", config, getGroupCountTopology());
+		cluster.submitTopology("test", config, getGroupCountPersistentTopolgoy());
 		
 		System.out.println("submited");
 		
@@ -82,4 +88,30 @@ public class App {
 		
 		return topology.build();
 	} //getParseVOTopology
+	
+	private static StormTopology getGroupCountTopology(){
+		TridentTopology topology = new TridentTopology();
+		
+		topology.newStream("test1", new ApacheLogSpout(10, 500))
+			.each(new Fields("logString"), ParseApacheLog.parseIp(), new Fields("ip"))
+			.groupBy(new Fields("ip"))
+			.aggregate(new Count(), new Fields("count"))
+			.each(new Fields("ip", "count"), new Print());
+		
+		return topology.build();
+	} //getGroupCountTopology
+	
+	private static StormTopology getGroupCountPersistentTopolgoy(){
+		TridentTopology topology = new TridentTopology();
+		
+		topology.newStream("test1", new ApacheLogSpout(100, 500))
+			.each(new Fields("logString"), ParseApacheLog.parseIp(), new Fields("ip"))
+			.groupBy(new Fields("ip"))
+//			.aggregate(new Count(), new Fields("count"))
+			.persistentAggregate(new MemoryMapState.Factory(), new Count(), new Fields("count"))
+//			.each(new Fields("ip", "count"), new Print());
+			.newValuesStream().each(new Fields("ip", "count"), new Print());
+		
+		return topology.build();
+	} //getGroupCountPersistentTopology
 } // class
