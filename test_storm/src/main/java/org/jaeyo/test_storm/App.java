@@ -1,5 +1,6 @@
 package org.jaeyo.test_storm;
 
+import org.jaeyo.test_storm.aggregate.StringCounter;
 import org.jaeyo.test_storm.filter.Print;
 import org.jaeyo.test_storm.function.ParseApacheLog;
 import org.jaeyo.test_storm.function.ToUpperCase;
@@ -27,7 +28,7 @@ public class App {
 //		cluster.submitTopology("test", config, getParseVOTopology());
 //		cluster.submitTopology("test", config, getParseIpTopology());
 //		cluster.submitTopology("test", config, getGroupCountTopology());
-		cluster.submitTopology("test", config, getGroupCountPersistentTopolgoy());
+		cluster.submitTopology("test", config, getStringCounterTopology());
 		
 		System.out.println("submited");
 		
@@ -107,10 +108,19 @@ public class App {
 		topology.newStream("test1", new ApacheLogSpout(100, 500))
 			.each(new Fields("logString"), ParseApacheLog.parseIp(), new Fields("ip"))
 			.groupBy(new Fields("ip"))
-//			.aggregate(new Count(), new Fields("count"))
 			.persistentAggregate(new MemoryMapState.Factory(), new Count(), new Fields("count"))
-//			.each(new Fields("ip", "count"), new Print());
 			.newValuesStream().each(new Fields("ip", "count"), new Print());
+		
+		return topology.build();
+	} //getGroupCountPersistentTopology
+	
+	private static StormTopology getStringCounterTopology(){
+		TridentTopology topology = new TridentTopology();
+		
+		topology.newStream("test1", new ApacheLogSpout(100, 500))
+			.each(new Fields("logString"), ParseApacheLog.parseIp(), new Fields("ip"))
+			.aggregate(new Fields("ip"), new StringCounter(), new Fields("aggregated_result"))
+			.each(new Fields("aggregated_result"), new Print());
 		
 		return topology.build();
 	} //getGroupCountPersistentTopology
